@@ -1,0 +1,2 @@
+set pcname serveur
+ip 172.24.72.2 172.24.72.1 23

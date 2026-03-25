@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# ===========================================
+#     SCRIPT D’INSTALLATION ET CONFIG MYSQL
+# ===========================================
+
+# Vérification du paramètre
+if [ -z "$1" ]; then
+    echo " Erreur : vous devez spécifier un nom de base de données."
+    echo " Exemple : ./setup_mysql.sh entreprise"
+    exit 1
+fi
+
+DB_NAME="$1"
+ADMIN_USER="admin"
+ADMIN_PASS="Admin123"
+USER_USER="user"
+USER_PASS="User123"
+
+echo "------ Vérification de l'installation MySQL ------"
+
+if ! command -v mysql >/dev/null 2>&1; then
+    echo "[INFO] MySQL non installé. Installation..."
+    sudo apt update
+    sudo apt install -y mysql-server
+else
+    echo "[INFO] MySQL est déjà installé."
+fi
+
+# ===================================
+#     CONFIGURATION DU bind-address
+# ===================================
+
+CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
+
+echo "------ Vérification du bind-address ------"
+
+if ! grep -q "bind-address = 0.0.0.0" "$CONFIG_FILE"; then
+    echo "[INFO] Mise à jour du bind-address pour autoriser les connexions distantes..."
+    sudo sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' "$CONFIG_FILE"
+fi
+
+echo "------ Redémarrage du service MySQL ------"
+sudo systemctl restart mysql
+
+# ===================================
+#     CREATION DES UTILISATEURS
+# ===================================
+
+echo "------ Création des utilisateurs MySQL ------"
+
+sudo mysql -e "
+CREATE USER IF NOT EXISTS '$ADMIN_USER'@'%' IDENTIFIED BY '$ADMIN_PASS';
+GRANT ALL PRIVILEGES ON *.* TO '$ADMIN_USER'@'%' WITH GRANT OPTION;
+
+CREATE USER IF NOT EXISTS '$USER_USER'@'%' IDENTIFIED BY '$USER_PASS';
+GRANT SELECT, INSERT, UPDATE ON ${DB_NAME}.* TO '$USER_USER'@'%';
+
+FLUSH PRIVILEGES;
+"
+
+# ===================================
+#     CREATION DE LA BASE VIDE
+# ===================================
+
+echo "------ Création de la base de données : $DB_NAME ------"
+
+sudo mysql -e "
+CREATE DATABASE IF NOT EXISTS $DB_NAME;
+"
+
+echo
+echo "============================================"
+echo "  INSTALLATION & CONFIGURATION RÉUSSIES "    
+echo "============================================"
+echo
+echo "Base créée        : $DB_NAME"
+echo "Admin MySQL       : $ADMIN_USER / $ADMIN_PASS"
+echo "Utilisateur simple: $USER_USER / $USER_PASS"
+echo
+echo "Pour vous connecter depuis une machine cliente :"
+echo "mysql -h <IP_SERVEUR> -u $ADMIN_USER -p"
+echo
+echo "Exemple : "
+echo "mysql -h 192.168.91.134 -u admin -p"
+echo
+echo "============================================"
+
